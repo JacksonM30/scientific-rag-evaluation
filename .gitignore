@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.venv/
+venv/
+
+# Experiment outputs and caches
+outputs/
+artifacts/
+runs/
+*.log
+
+# Large local datasets or indexes
+data/raw/
+data/cache/
+indexes/
+*.faiss
+

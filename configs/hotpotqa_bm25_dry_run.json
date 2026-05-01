@@ -1,0 +1,23 @@
+{
+  "run_name": "hotpotqa_mini_bm25_dry_run",
+  "dataset": {
+    "name": "hotpotqa_mini_synthetic",
+    "path": "data/hotpotqa_mini/sample.jsonl",
+    "limit": null
+  },
+  "retriever": {
+    "name": "bm25",
+    "library": "langchain_community",
+    "top_k": 3
+  },
+  "prompt": {
+    "id": "rag_qa_v1"
+  },
+  "generation": {
+    "dry_run": true,
+    "model_profile": null
+  },
+  "output": {
+    "path": "outputs/hotpotqa_mini_bm25_dry_run/results.jsonl"
+  }
+}
