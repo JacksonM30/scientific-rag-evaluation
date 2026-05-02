@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from rag_experiment.retrieval.bm25 import RetrievalResult
+from rag_experiment.retrieval.base import RetrievalResult
 
 
 @dataclass(frozen=True)

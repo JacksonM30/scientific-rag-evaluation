@@ -12,7 +12,8 @@ rag_project/
   data/                    # Tiny fixtures plus ignored raw/processed datasets
   src/rag_experiment/
     data/                  # Dataset schemas and loaders
-    retrieval/             # Retriever adapters, starting with LangChain BM25
+    retrieval/             # BM25, dense, and hybrid retriever adapters
+    model_clients/         # Chat model and embedding factories
     generation/            # Prompt definitions now; model generation later
     runners/               # Executable experiment flows
   outputs/                 # Ignored run artifacts
@@ -26,7 +27,7 @@ Planning notes and assignment documents live outside this repo in `../docs/`.
 config
   -> load HotpotQA-style examples
   -> flatten each example context into passages
-  -> retrieve top_k passages with BM25
+  -> retrieve top_k passages with the configured retriever
   -> format retrieved context
   -> render reusable prompt messages
   -> write one JSONL artifact per example
@@ -38,15 +39,18 @@ The current runner is dry-run only, so it stops before calling an LLM. It writes
 ## Module Responsibilities
 
 - `data.hotpotqa`: owns `HotpotExample`, `Passage`, and JSONL loading.
-- `retrieval.bm25`: wraps `langchain_community` BM25 and returns project-owned
-  retrieval records.
+- `retrieval`: wraps library retrievers behind project-owned retrieval records.
+  Current methods are BM25, dense vector retrieval over DashScope embeddings,
+  and hybrid fusion through LangChain `EnsembleRetriever`.
+- `model_clients.embeddings`: creates DashScope embeddings through the
+  OpenAI-compatible API.
 - `generation.prompts`: owns named prompt definitions and context formatting.
 - `runners.dry_run`: connects config, data loading, retrieval, prompt rendering,
   and artifact writing.
 
 ## What Comes Later
 
-- `generation`: add model-client calls using the existing LLM profiles.
+- `generation`: add model-client calls using the existing model profiles.
 - `evaluation`: add retrieval, answer, citation, and grounding metrics once real
   generation artifacts exist.
 - `analysis`: aggregate artifact JSONL into tables and failure patterns.

@@ -1,9 +1,10 @@
 # Model Clients 配置指南
 
-本项目将模型设置拆分为三个微型文件，以实现模块化管理：
-•	providers.py：供应商注册表。负责记录如何连接各个模型厂商。
+本项目将模型设置拆分为几个微型文件，以实现模块化管理：
+•	providers.py：供应商注册表。负责记录如何连接各个模型厂商，并共享 DashScope 的连接配置。
 •	profiles.py：实验预设（Profile）。记录特定实验所使用的供应商、模型及参数配置。
 •	factory.py：工厂函数。负责将供应商和预设配置转化为可用的 LangChain 聊天模型实例。
+•	embeddings.py：检索用 embedding 工厂。当前默认使用 DashScope 的 OpenAI-compatible embedding API。
 
 ## 核心理念
 
@@ -88,4 +89,25 @@ export NEW_PROVIDER_API_KEY="..."
 •	对于快速的单次探索，可以使用 get_llm()。
 •	如果预设中引用了某个供应商，该供应商必须存在于 PROVIDERS 中。
 
-embeddings
+## Embeddings
+
+Dense retrieval uses:
+
+```python
+from rag_experiment.model_clients import get_embedding_model
+
+embeddings = get_embedding_model(
+    provider="dashscope",
+    model="text-embedding-v2",
+)
+```
+
+Default DashScope embedding settings:
+•	provider: dashscope
+•	env var: DASHSCOPE_API_KEY
+•	base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+•	default model: text-embedding-v2
+
+Embeddings use `langchain_openai.OpenAIEmbeddings` against DashScope's
+OpenAI-compatible endpoint. If that call fails, the error is surfaced directly
+so integration problems are visible instead of hidden by fallback behavior.

@@ -8,7 +8,7 @@ See `docs/ARCHITECTURE.md` for the current module map and data flow.
 
 ## Current Direction
 
-- Start with a tiny HotpotQA BM25 loop.
+- Start with a tiny HotpotQA retrieval loop.
 - Save intermediate artifacts so retrieval and generation failures can be inspected.
 - Use standard libraries for standard RAG components where practical.
 - Keep experiment configs, artifacts, and analysis under project control.
@@ -41,7 +41,9 @@ conda run -n LLM python -V
 
 LangChain is already used for model clients and retrieval adapters. The BM25
 baseline uses `langchain_community.retrievers.BM25Retriever`, which requires the
-optional `rank-bm25` package.
+optional `rank-bm25` package. Dense retrieval uses LangChain's in-memory vector
+store plus DashScope embeddings through the OpenAI-compatible API. Hybrid
+retrieval uses LangChain `EnsembleRetriever` over BM25 and dense retrievers.
 
 Core RAG dependencies are recorded in `requirements.txt`. Install or refresh
 them in the `LLM` environment with:
@@ -64,14 +66,21 @@ Experiment code should not install dependencies at runtime. During development,
 the assistant may try setup commands; if download/install fails, it should give
 the exact command for manual installation.
 
-## First Dry Run
+## Retrieval Dry Runs
 
-Run the first no-API artifact pass from this repository root:
+Run the BM25 no-API artifact pass from this repository root:
 
 ```bash
 conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_bm25_dry_run.json
 ```
 
+Dense and hybrid retrieval use `DASHSCOPE_API_KEY` for embeddings:
+
+```bash
+conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_dense_dry_run.json
+conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_hybrid_dry_run.json
+```
+
 This writes JSONL artifacts under `outputs/`, which is ignored by Git. The dry
-run validates dataset loading, LangChain BM25 retrieval, prompt rendering, and
-artifact shape before any model API call.
+run validates dataset loading, retrieval, prompt rendering, and artifact shape
+before any answer-generation model call.

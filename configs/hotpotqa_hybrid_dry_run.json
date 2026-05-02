@@ -1,0 +1,34 @@
+{
+  "run_name": "hotpotqa_mini_hybrid_dry_run",
+  "dataset": {
+    "name": "hotpotqa_mini_synthetic",
+    "path": "data/hotpotqa_mini/sample.jsonl",
+    "limit": null
+  },
+  "retriever": {
+    "name": "hybrid",
+    "library": "langchain_ensemble_bm25_in_memory_vectorstore",
+    "top_k": 3,
+    "embedding": {
+      "provider": "dashscope",
+      "model": "text-embedding-v2",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "hybrid": {
+      "weights": [0.5, 0.5],
+      "rrf_k": 60,
+      "candidate_k": 6
+    }
+  },
+  "prompt": {
+    "id": "rag_qa_v1"
+  },
+  "generation": {
+    "dry_run": true,
+    "model_profile": null
+  },
+  "output": {
+    "path": "outputs/hotpotqa_mini_hybrid_dry_run/results.jsonl"
+  }
+}

@@ -10,7 +10,8 @@ from typing import Any
 
 from rag_experiment.data.hotpotqa import HotpotExample, load_hotpot_jsonl
 from rag_experiment.generation.prompts import format_retrieved_context, get_prompt
-from rag_experiment.retrieval.bm25 import BM25Retriever, RetrievalResult
+from rag_experiment.retrieval.base import RetrievalResult
+from rag_experiment.retrieval.factory import build_retriever
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -56,8 +57,8 @@ def _build_dry_run_record(
 ) -> dict[str, Any]:
     try:
         top_k = int(config["retriever"]["top_k"])
-        retriever = BM25Retriever(example.passages(), top_k=top_k)
-        results = retriever.search(example.question, top_k=top_k)
+        retriever = build_retriever(config["retriever"], example.passages())
+        results = retriever.retrieve(example.question, top_k=top_k)
         context = format_retrieved_context(results)
         rendered_messages = prompt.render(question=example.question, context=context)
 
@@ -117,6 +118,7 @@ def _retrieval_record(result: RetrievalResult) -> dict[str, Any]:
         "title": passage.title,
         "sentence_index": passage.sentence_index,
         "text": passage.text,
+        "metadata": result.metadata,
     }
 
 
