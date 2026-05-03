@@ -10,17 +10,22 @@ from typing import Any
 
 from rag_experiment.data.hotpotqa import HotpotExample, load_hotpot_jsonl
 from rag_experiment.generation.prompts import format_retrieved_context, get_prompt
-from rag_experiment.retrieval.base import RetrievalResult
 from rag_experiment.retrieval.factory import build_retriever
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from rag_experiment.runners.artifacts import (
+    error_record,
+    example_record,
+    jsonable_config,
+    load_json,
+    resolve_config_paths,
+    resolve_path,
+    retrieval_record,
+)
 
 
 def run_config(config_path: str | Path) -> Path:
-    config_file = _resolve_path(config_path)
-    config = _load_json(config_file)
-    resolved_config = _resolve_config_paths(config)
+    config_file = resolve_path(config_path)
+    config = load_json(config_file)
+    resolved_config = resolve_config_paths(config)
 
     if not resolved_config["generation"].get("dry_run", False):
         raise ValueError("This runner currently supports dry_run=true only.")
@@ -66,13 +71,14 @@ def _build_dry_run_record(
             "run_name": config["run_name"],
             "created_at": started_at,
             "dry_run": True,
-            "config": _jsonable_config(config),
-            "example": _example_record(example),
-            "retrieved_passages": [_retrieval_record(result) for result in results],
+            "config": jsonable_config(config),
+            "example": example_record(example),
+            "retrieved_passages": [retrieval_record(result) for result in results],
             "prompt": prompt.as_dict(),
             "rendered_messages": rendered_messages,
             "raw_model_answer": None,
             "parsed_answer": None,
+            "cited_passage_ids": [],
             "error": None,
         }
     except Exception as exc:  # Preserve enough context for later failure analysis.
@@ -80,75 +86,16 @@ def _build_dry_run_record(
             "run_name": config["run_name"],
             "created_at": started_at,
             "dry_run": True,
-            "config": _jsonable_config(config),
-            "example": _example_record(example),
+            "config": jsonable_config(config),
+            "example": example_record(example),
             "retrieved_passages": [],
             "prompt": prompt.as_dict(),
             "rendered_messages": [],
             "raw_model_answer": None,
             "parsed_answer": None,
-            "error": {
-                "type": type(exc).__name__,
-                "message": str(exc),
-            },
+            "cited_passage_ids": [],
+            "error": error_record(exc),
         }
-
-
-def _example_record(example: HotpotExample) -> dict[str, Any]:
-    return {
-        "id": example.id,
-        "question": example.question,
-        "gold_answer": example.answer,
-        "type": example.type,
-        "level": example.level,
-        "supporting_facts": [
-            {"title": title, "sentence_index": sentence_index}
-            for title, sentence_index in example.supporting_facts
-        ],
-    }
-
-
-def _retrieval_record(result: RetrievalResult) -> dict[str, Any]:
-    passage = result.passage
-    return {
-        "rank": result.rank,
-        "score": result.score,
-        "passage_id": passage.id,
-        "example_id": passage.example_id,
-        "title": passage.title,
-        "sentence_index": passage.sentence_index,
-        "text": passage.text,
-        "metadata": result.metadata,
-    }
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _resolve_config_paths(config: dict[str, Any]) -> dict[str, Any]:
-    resolved = json.loads(json.dumps(config))
-    resolved["dataset"]["path"] = _resolve_path(resolved["dataset"]["path"])
-    resolved["output"]["path"] = _resolve_path(resolved["output"]["path"])
-    return resolved
-
-
-def _resolve_path(path: str | Path) -> Path:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        return candidate
-    return PROJECT_ROOT / candidate
-
-
-def _jsonable_config(config: Any) -> Any:
-    if isinstance(config, dict):
-        return {key: _jsonable_config(value) for key, value in config.items()}
-    if isinstance(config, list):
-        return [_jsonable_config(value) for value in config]
-    if isinstance(config, Path):
-        return str(config)
-    return config
 
 
 def _main() -> None:

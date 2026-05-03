@@ -8,12 +8,12 @@ See `docs/ARCHITECTURE.md` for the current module map and data flow.
 
 ## Current Direction
 
-- Start with a tiny HotpotQA retrieval loop.
+- Start with a tiny HotpotQA RAG loop.
 - Save intermediate artifacts so retrieval and generation failures can be inspected.
 - Use standard libraries for standard RAG components where practical.
 - Keep experiment configs, artifacts, and analysis under project control.
 - Use `rag_experiment.model_clients` for generation profiles.
-- Expand only after one end-to-end run works.
+- Expand only after one end-to-end run is understandable.
 
 ## Dataset Policy
 
@@ -84,3 +84,17 @@ conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_hybri
 This writes JSONL artifacts under `outputs/`, which is ignored by Git. The dry
 run validates dataset loading, retrieval, prompt rendering, and artifact shape
 before any answer-generation model call.
+
+## Generation Smoke Run
+
+The first real generation config uses HotpotQA mini, BM25, `top_k=3`, and the
+`rag_qwen_generation_v1` model profile:
+
+```bash
+conda run -n LLM python -m rag_experiment.runners.run_generation configs/hotpotqa_bm25_generation.json
+```
+
+This calls DashScope through the OpenAI-compatible API, so `DASHSCOPE_API_KEY`
+must be set. Each output row includes the question, gold answer, retrieved
+passages, rendered messages, raw model answer, parsed answer, cited passage IDs,
+and any per-example error.

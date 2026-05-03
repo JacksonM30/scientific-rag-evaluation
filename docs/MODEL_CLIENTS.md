@@ -77,9 +77,28 @@ export NEW_PROVIDER_API_KEY="..."
     "model": "qwen3-8b",
     "temperature": 0,
     "max_tokens": 1024,
+    "extra_body": {"enable_thinking": False},
 }
 ```
 提示：请使用能够描述实验目的的名称作为 Profile 键名，而不仅仅是模型名称。
+
+## DashScope/Qwen 注意事项
+
+DashScope OpenAI-compatible 的部分 Qwen 模型在非 streaming 调用时需要关闭
+thinking mode，否则可能返回：
+
+```text
+parameter.enable_thinking must be set to false for non-streaming calls
+```
+
+因此，当前 RAG 生成 profile 使用：
+
+```python
+"extra_body": {"enable_thinking": False}
+```
+
+这个配置属于模型 profile 层，不应该写死在 generation runner 里。未来新增 Qwen
+生成 profile 时，如果继续使用非 streaming 调用，优先保留这个字段。
 
 # 团队规范
 •	禁止在 Notebook 或 Python 文件中硬编码 API 密钥。

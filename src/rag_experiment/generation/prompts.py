@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from rag_experiment.retrieval.base import RetrievalResult
@@ -24,14 +25,17 @@ class PromptDefinition:
             "human_template": self.human_template,
         }
 
-    def render(self, *, question: str, context: str) -> list[dict[str, str]]:
+    def render_langchain(self, *, question: str, context: str) -> list[BaseMessage]:
         template = ChatPromptTemplate.from_messages(
             [
                 ("system", self.system_template),
                 ("human", self.human_template),
             ]
         )
-        messages = template.format_messages(question=question, context=context)
+        return template.format_messages(question=question, context=context)
+
+    def render(self, *, question: str, context: str) -> list[dict[str, str]]:
+        messages = self.render_langchain(question=question, context=context)
         return [{"type": message.type, "content": str(message.content)} for message in messages]
 
 
@@ -51,9 +55,28 @@ RAG_QA_V1 = PromptDefinition(
     ),
 )
 
+RAG_QA_JSON_V1 = PromptDefinition(
+    id="rag_qa_json_v1",
+    description="Answer with strict JSON containing a short answer and cited passage ids.",
+    system_template=(
+        "You are a careful question-answering assistant. Answer using only the "
+        "retrieved context. Return only valid JSON with exactly these keys: "
+        "answer and cited_passage_ids. cited_passage_ids must be a list of "
+        "passage_id strings copied from the retrieved context. If the answer is "
+        "not supported, say that in answer and return an empty cited_passage_ids list."
+    ),
+    human_template=(
+        "Question:\n{question}\n\n"
+        "Retrieved context:\n{context}\n\n"
+        "Return only JSON in this schema:\n"
+        "{{\"answer\": \"short answer\", \"cited_passage_ids\": [\"passage_id\"]}}"
+    ),
+)
+
 
 PROMPTS = {
     RAG_QA_V1.id: RAG_QA_V1,
+    RAG_QA_JSON_V1.id: RAG_QA_JSON_V1,
 }
 
 
