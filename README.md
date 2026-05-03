@@ -98,3 +98,15 @@ This calls DashScope through the OpenAI-compatible API, so `DASHSCOPE_API_KEY`
 must be set. Each output row includes the question, gold answer, retrieved
 passages, rendered messages, raw model answer, parsed answer, cited passage IDs,
 and any per-example error.
+
+## Generation Artifact Inspection
+
+Inspect a saved generation artifact without making new API calls:
+
+```bash
+conda run -n LLM python -m rag_experiment.analysis.inspect_generation outputs/hotpotqa_mini_bm25_generation/results.jsonl
+```
+
+Use `--limit N` to print only the first N examples, `--show-prompt` to include
+rendered messages, or `--summary-json PATH` to write aggregate counts. The raw
+`results.jsonl` remains the per-example source of truth.
