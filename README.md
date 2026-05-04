@@ -74,7 +74,10 @@ Run the BM25 no-API artifact pass from this repository root:
 conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_bm25_dry_run.json
 ```
 
-Dense and hybrid retrieval use `DASHSCOPE_API_KEY` for embeddings:
+Dense and hybrid retrieval use `DASHSCOPE_API_KEY` for embeddings. The pooled
+PubMedQA/SciFact runners default to DashScope `text-embedding-v4` with
+1024-dimensional vectors and save reusable vector caches under
+`outputs/embedding_cache/`.
 
 ```bash
 conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_dense_dry_run.json
@@ -137,8 +140,8 @@ Run pooled-corpus PubMedQA retrieval artifacts:
 ```bash
 conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 100 --top-k 5
 conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 0 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --corpus-limit 20 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --corpus-limit 20 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --corpus-limit 20 --top-k 5 --embedding-model text-embedding-v4 --embedding-dimensions 1024
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --corpus-limit 20 --top-k 5 --embedding-model text-embedding-v4 --embedding-dimensions 1024
 conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/pubmedqa_bm25_pooled_v01.jsonl --dataset pubmedqa
 ```
 
@@ -146,16 +149,17 @@ Run pooled-corpus SciFact retrieval artifacts:
 
 ```bash
 conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever bm25 --limit 20 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever dense --limit 5 --top-k 5 --corpus-doc-limit 50
-conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever hybrid --limit 5 --top-k 5 --corpus-doc-limit 50
+conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever dense --limit 5 --top-k 5 --corpus-doc-limit 50 --embedding-model text-embedding-v4 --embedding-dimensions 1024
+conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever hybrid --limit 5 --top-k 5 --corpus-doc-limit 50 --embedding-model text-embedding-v4 --embedding-dimensions 1024
 conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/scifact_bm25_pooled_v01.jsonl --dataset scifact
 ```
 
 These runs search each query over a shared passage pool, including distractors.
 The prediction answer is still the gold-label demo value, so these artifacts are
 retrieval-focused rather than generation-focused. Dense and hybrid runs call the
-embedding API; keep corpus limits small while developing. For PubMedQA,
-`--limit` controls evaluated query rows and `--corpus-limit` controls retrieval
-corpus rows; `--corpus-limit 0` uses all loaded PubMedQA rows. Nonzero
-`--corpus-limit` must be at least `--limit` so every evaluated query's gold
-context is present in the retrieval pool.
+embedding API on a cache miss and reuse local cached vectors on later matching
+runs. Use `--no-embedding-cache` only when debugging live embedding calls. For
+PubMedQA, `--limit` controls evaluated query rows and `--corpus-limit` controls
+retrieval corpus rows; `--corpus-limit 0` uses all loaded PubMedQA rows.
+Nonzero `--corpus-limit` must be at least `--limit` so every evaluated query's
+gold context is present in the retrieval pool.

@@ -29,11 +29,33 @@ label accuracy are sanity checks, not model performance.
   `outputs/retrieval/pubmedqa_bm25_pooled_n100_fullcorpus_v01.jsonl`
   - 100 queries, full PubMedQA corpus rows, 3358 passages, `top_k=5`
   - `context_hit_at_k=0.9`, `context_recall_at_k=0.553571`
+- PubMedQA dense v4 larger run:
+  `outputs/retrieval/pubmedqa_dense_v4_pooled_n100_fullcorpus_v01.jsonl`
+  - 100 queries, full PubMedQA corpus rows, 3358 passages, `top_k=5`
+  - `text-embedding-v4`, 1024 dimensions, cache created
+  - `context_hit_at_k=0.99`, `context_recall_at_k=0.900952`
+- PubMedQA hybrid v4 larger run:
+  `outputs/retrieval/pubmedqa_hybrid_v4_pooled_n100_fullcorpus_v01.jsonl`
+  - 100 queries, full PubMedQA corpus rows, 3358 passages, `top_k=5`
+  - `text-embedding-v4`, 1024 dimensions, cache hit
+  - `context_hit_at_k=0.97`, `context_recall_at_k=0.7625`
 - SciFact BM25 larger run:
   `outputs/retrieval/scifact_bm25_pooled_n100_corpus1000_v01.jsonl`
   - 100 claims, 1000 corpus docs, 8572 passages, `top_k=5`
   - `evidence_doc_hit_at_k=0.8`, `evidence_sentence_hit_at_k=0.52`,
     `evidence_all_hit_at_k=0.25`, `evidence_recall_at_k=0.365111`
+- SciFact dense v4 larger run:
+  `outputs/retrieval/scifact_dense_v4_pooled_n100_corpus1000_v01.jsonl`
+  - 100 claims, 1000 corpus docs, 8572 passages, `top_k=5`
+  - `text-embedding-v4`, 1024 dimensions, cache created
+  - `evidence_doc_hit_at_k=0.99`, `evidence_sentence_hit_at_k=0.95`,
+    `evidence_all_hit_at_k=0.68`, `evidence_recall_at_k=0.82219`
+- SciFact hybrid v4 larger run:
+  `outputs/retrieval/scifact_hybrid_v4_pooled_n100_corpus1000_v01.jsonl`
+  - 100 claims, 1000 corpus docs, 8572 passages, `top_k=5`
+  - `text-embedding-v4`, 1024 dimensions, cache hit
+  - `evidence_doc_hit_at_k=0.98`, `evidence_sentence_hit_at_k=0.83`,
+    `evidence_all_hit_at_k=0.45`, `evidence_recall_at_k=0.624611`
 
 ### Failure Patterns
 
@@ -55,14 +77,14 @@ label accuracy are sanity checks, not model performance.
 
 ### Report Readiness
 
-- Supported now: BM25 pooled-corpus retrieval metrics for PubMedQA and SciFact.
-- Weak now: dense/hybrid comparisons, because current dense/hybrid artifacts are
-  only 5-row smoke runs.
+- Supported now: BM25, dense v4, and hybrid v4 pooled-corpus retrieval metrics
+  for PubMedQA and SciFact at matched n=100 settings.
+- Strongest current retriever: dense v4. It beats BM25 and hybrid v4 on both
+  PubMedQA context recall and SciFact evidence recall.
 - Not supported yet: generated answer quality, citation precision, hallucination
   reduction, or model-vs-model comparisons.
 
-Next evidence step: either scale dense/hybrid to the same sample sizes if API
-budget is acceptable, or connect BM25 retrieval to one generation profile and
+Next evidence step: connect dense v4 retrieval to one generation profile and
 measure answer/citation behavior on a small sample.
 
 ## Future Idea: Context Expansion After Retrieval

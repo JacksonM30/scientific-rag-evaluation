@@ -18,8 +18,11 @@ from rag_experiment.data.inspect_datasets import DEFAULT_HF_CACHE
 from rag_experiment.retrieval.base import RetrievalResult, Retriever
 from rag_experiment.runners.artifacts import PROJECT_ROOT, error_record
 from rag_experiment.runners.pooled_retrieval import (
+    DEFAULT_EMBEDDING_DIMENSIONS,
+    DEFAULT_EMBEDDING_MODEL,
     RETRIEVER_CHOICES,
     build_pooled_retriever,
+    embedding_run_metadata,
     pooled_output_path,
 )
 
@@ -36,6 +39,9 @@ def run_pubmedqa_retrieval(
     top_k: int,
     output_path: Path,
     cache_dir: Path,
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    embedding_dimensions: int | None = DEFAULT_EMBEDDING_DIMENSIONS,
+    embedding_cache_dir: Path | None = PROJECT_ROOT / "outputs/embedding_cache",
 ) -> Path:
     """Build a pooled PubMedQA retrieval artifact."""
     rows = load_pubmedqa_rows(cache_dir=cache_dir)
@@ -46,7 +52,18 @@ def run_pubmedqa_retrieval(
         query_limit=limit,
     )
     passages = build_pubmedqa_passages(corpus_rows)
-    retriever = build_pooled_retriever(retriever_name, passages, top_k=top_k)
+    retriever = build_pooled_retriever(
+        retriever_name,
+        passages,
+        top_k=top_k,
+        embedding_model_name=embedding_model,
+        embedding_dimensions=embedding_dimensions,
+        embedding_cache_dir=embedding_cache_dir,
+        embedding_cache_namespace=(
+            f"pubmedqa_corpus{corpus_limit}_rows{len(corpus_rows)}_passages{len(passages)}"
+        ),
+    )
+    embedding_metadata = embedding_run_metadata(retriever)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
@@ -60,6 +77,7 @@ def run_pubmedqa_retrieval(
                 corpus_limit=corpus_limit,
                 corpus_row_count=len(corpus_rows),
                 passage_count=len(passages),
+                embedding_metadata=embedding_metadata,
             )
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -76,6 +94,7 @@ def _build_record(
     corpus_limit: int,
     corpus_row_count: int,
     passage_count: int,
+    embedding_metadata: dict[str, Any],
 ) -> dict[str, Any]:
     try:
         results = retriever.retrieve(str(row["question"]), top_k=top_k)
@@ -88,6 +107,7 @@ def _build_record(
             corpus_limit=corpus_limit,
             corpus_row_count=corpus_row_count,
             passage_count=passage_count,
+            embedding_metadata=embedding_metadata,
             error=None,
         )
     except Exception as exc:
@@ -100,6 +120,7 @@ def _build_record(
             corpus_limit=corpus_limit,
             corpus_row_count=corpus_row_count,
             passage_count=passage_count,
+            embedding_metadata=embedding_metadata,
             error=error_record(exc),
         )
 
@@ -114,6 +135,7 @@ def _record(
     corpus_limit: int,
     corpus_row_count: int,
     passage_count: int,
+    embedding_metadata: dict[str, Any],
     error: dict[str, str] | None,
 ) -> dict[str, Any]:
     pubid = str(row["pubid"])
@@ -131,7 +153,8 @@ def _record(
             "corpus_limit": corpus_limit,
             "corpus_row_count": corpus_row_count,
             "passage_count": passage_count,
-        },
+        }
+        | embedding_metadata,
         "example": {
             "id": pubid,
             "query": row["question"],
@@ -187,6 +210,19 @@ def _main() -> None:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--hf-cache-dir", type=Path, default=DEFAULT_HF_CACHE)
+    parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
+    parser.add_argument(
+        "--embedding-dimensions",
+        type=int,
+        default=DEFAULT_EMBEDDING_DIMENSIONS,
+        help="Embedding vector dimensions for models that support it; use 0 for provider default.",
+    )
+    parser.add_argument(
+        "--embedding-cache-dir",
+        type=Path,
+        default=PROJECT_ROOT / "outputs/embedding_cache",
+    )
+    parser.add_argument("--no-embedding-cache", action="store_true")
     args = parser.parse_args()
 
     output_path = args.output or pooled_output_path("pubmedqa", args.retriever)
@@ -197,6 +233,11 @@ def _main() -> None:
         top_k=args.top_k,
         output_path=output_path,
         cache_dir=args.hf_cache_dir,
+        embedding_model=args.embedding_model,
+        embedding_dimensions=(
+            args.embedding_dimensions if args.embedding_dimensions != 0 else None
+        ),
+        embedding_cache_dir=None if args.no_embedding_cache else args.embedding_cache_dir,
     )
     print(f"wrote={output_path}")
 

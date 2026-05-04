@@ -34,7 +34,8 @@ EMBEDDING_PROVIDERS: dict[str, dict] = {
     "dashscope": {
         "api_key_env": DASHSCOPE_API_KEY_ENV,
         "base_url": DASHSCOPE_OPENAI_BASE_URL,
-        "default_model": "text-embedding-v2",
-        "chunk_size": 25,
+        "default_model": "text-embedding-v4",
+        "default_dimensions": 1024,
+        "chunk_size": 10,
     },
 }

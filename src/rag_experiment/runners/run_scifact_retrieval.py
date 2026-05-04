@@ -17,10 +17,13 @@ from rag_experiment.corpus.scifact import (
 )
 from rag_experiment.data.inspect_datasets import DEFAULT_SCIFACT_DIR
 from rag_experiment.retrieval.base import RetrievalResult, Retriever
-from rag_experiment.runners.artifacts import error_record
+from rag_experiment.runners.artifacts import PROJECT_ROOT, error_record
 from rag_experiment.runners.pooled_retrieval import (
+    DEFAULT_EMBEDDING_DIMENSIONS,
+    DEFAULT_EMBEDDING_MODEL,
     RETRIEVER_CHOICES,
     build_pooled_retriever,
+    embedding_run_metadata,
     pooled_output_path,
 )
 
@@ -36,6 +39,9 @@ def run_scifact_retrieval(
     output_path: Path,
     data_dir: Path,
     corpus_doc_limit: int,
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    embedding_dimensions: int | None = DEFAULT_EMBEDDING_DIMENSIONS,
+    embedding_cache_dir: Path | None = PROJECT_ROOT / "outputs/embedding_cache",
 ) -> Path:
     """Build a pooled SciFact retrieval artifact from labeled train claims."""
     corpus, train_claims = load_scifact_data(data_dir=data_dir)
@@ -50,7 +56,18 @@ def run_scifact_retrieval(
         corpus_doc_limit=corpus_doc_limit,
     )
     passages = build_scifact_passages(corpus=corpus, doc_ids=doc_ids)
-    retriever = build_pooled_retriever(retriever_name, passages, top_k=top_k)
+    retriever = build_pooled_retriever(
+        retriever_name,
+        passages,
+        top_k=top_k,
+        embedding_model_name=embedding_model,
+        embedding_dimensions=embedding_dimensions,
+        embedding_cache_dir=embedding_cache_dir,
+        embedding_cache_namespace=(
+            f"scifact_docs{corpus_doc_limit}_doccount{len(doc_ids)}_passages{len(passages)}"
+        ),
+    )
+    embedding_metadata = embedding_run_metadata(retriever)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
@@ -65,6 +82,7 @@ def run_scifact_retrieval(
                 corpus_doc_limit=corpus_doc_limit,
                 corpus_doc_count=len(doc_ids),
                 passage_count=len(passages),
+                embedding_metadata=embedding_metadata,
             )
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -82,6 +100,7 @@ def _build_record(
     corpus_doc_limit: int,
     corpus_doc_count: int,
     passage_count: int,
+    embedding_metadata: dict[str, Any],
 ) -> dict[str, Any]:
     try:
         results = retriever.retrieve(str(claim["claim"]), top_k=top_k)
@@ -95,6 +114,7 @@ def _build_record(
             corpus_doc_limit=corpus_doc_limit,
             corpus_doc_count=corpus_doc_count,
             passage_count=passage_count,
+            embedding_metadata=embedding_metadata,
             error=None,
         )
     except Exception as exc:
@@ -108,6 +128,7 @@ def _build_record(
             corpus_doc_limit=corpus_doc_limit,
             corpus_doc_count=corpus_doc_count,
             passage_count=passage_count,
+            embedding_metadata=embedding_metadata,
             error=error_record(exc),
         )
 
@@ -123,6 +144,7 @@ def _record(
     corpus_doc_limit: int,
     corpus_doc_count: int,
     passage_count: int,
+    embedding_metadata: dict[str, Any],
     error: dict[str, str] | None,
 ) -> dict[str, Any]:
     label = scifact_label(claim)
@@ -141,7 +163,8 @@ def _record(
             "corpus_doc_limit": corpus_doc_limit,
             "corpus_doc_count": corpus_doc_count,
             "passage_count": passage_count,
-        },
+        }
+        | embedding_metadata,
         "example": {
             "id": str(claim["id"]),
             "query": claim["claim"],
@@ -194,6 +217,19 @@ def _main() -> None:
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--scifact-dir", type=Path, default=DEFAULT_SCIFACT_DIR)
+    parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
+    parser.add_argument(
+        "--embedding-dimensions",
+        type=int,
+        default=DEFAULT_EMBEDDING_DIMENSIONS,
+        help="Embedding vector dimensions for models that support it; use 0 for provider default.",
+    )
+    parser.add_argument(
+        "--embedding-cache-dir",
+        type=Path,
+        default=PROJECT_ROOT / "outputs/embedding_cache",
+    )
+    parser.add_argument("--no-embedding-cache", action="store_true")
     args = parser.parse_args()
 
     output_path = args.output or pooled_output_path("scifact", args.retriever)
@@ -204,6 +240,11 @@ def _main() -> None:
         output_path=output_path,
         data_dir=args.scifact_dir,
         corpus_doc_limit=args.corpus_doc_limit,
+        embedding_model=args.embedding_model,
+        embedding_dimensions=(
+            args.embedding_dimensions if args.embedding_dimensions != 0 else None
+        ),
+        embedding_cache_dir=None if args.no_embedding_cache else args.embedding_cache_dir,
     )
     print(f"wrote={output_path}")
 

@@ -62,9 +62,12 @@ There are two runner modes:
   retrievable text.
 - `retrieval`: wraps library retrievers behind project-owned retrieval records.
   Current methods are BM25, dense vector retrieval over DashScope embeddings,
-  and hybrid fusion through LangChain `EnsembleRetriever`.
+  and hybrid fusion through LangChain `EnsembleRetriever`. Dense and hybrid
+  pooled runs can reuse local vector-store caches under ignored
+  `outputs/embedding_cache/`.
 - `model_clients.embeddings`: creates DashScope embeddings through the
-  OpenAI-compatible API.
+  OpenAI-compatible API. The default embedding model is `text-embedding-v4`
+  with 1024 dimensions.
 - `generation.prompts`: owns named prompt definitions and context formatting.
 - `generation.parsing`: parses strict JSON answer artifacts.
 - `runners.dry_run`: connects config, data loading, retrieval, prompt rendering,

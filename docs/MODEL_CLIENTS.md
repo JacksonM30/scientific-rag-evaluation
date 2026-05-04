@@ -117,7 +117,8 @@ from rag_experiment.model_clients import get_embedding_model
 
 embeddings = get_embedding_model(
     provider="dashscope",
-    model="text-embedding-v2",
+    model="text-embedding-v4",
+    dimensions=1024,
 )
 ```
 
@@ -125,11 +126,17 @@ Default DashScope embedding settings:
 •	provider: dashscope
 •	env var: DASHSCOPE_API_KEY
 •	base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
-•	default model: text-embedding-v2
-•	default batch size: 25 texts
+•	default model: text-embedding-v4
+•	default dimensions: 1024
+•	default batch size: 10 texts
 
 Embeddings use `langchain_openai.OpenAIEmbeddings` against DashScope's
 OpenAI-compatible endpoint. If that call fails, the error is surfaced directly
 so integration problems are visible instead of hidden by fallback behavior.
-The default `chunk_size` is capped at 25 because DashScope rejects larger
-embedding batches.
+The default `chunk_size` is capped at 10 because DashScope rejects larger
+`text-embedding-v4` batches.
+
+Pooled PubMedQA/SciFact dense and hybrid runners save reusable local vector
+caches under `outputs/embedding_cache/` by default. Artifact `run` metadata
+records the embedding provider, model, dimensions, cache path, and whether the
+run loaded cached passage vectors.

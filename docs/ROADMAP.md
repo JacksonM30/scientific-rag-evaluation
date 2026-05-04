@@ -7,7 +7,8 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 - Build and inspect real pooled-corpus retrieval artifacts for PubMedQA and
   SciFact.
 - PubMedQA and SciFact pooled runners exist with BM25, dense, and hybrid
-  options; inspect misses before scaling runs.
+  options; dense/hybrid now default to cached DashScope `text-embedding-v4`
+  vectors.
 - Use artifact inspection to identify retrieval misses and evidence coverage
   before making report-facing claims.
 - Use answer plus cited passage IDs as the default model output shape.
@@ -20,8 +21,8 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 
 - Inspect PubMedQA/SciFact pooled BM25 artifacts and record obvious retrieval
   misses or weak query/passage patterns.
-- Compare small BM25, dense, and hybrid smoke runs before scaling dense/hybrid
-  because they call the embedding API.
+- Scale PubMedQA/SciFact dense and hybrid retrieval with cached
+  `text-embedding-v4` and compare against BM25.
 - Decide the first report-facing sample sizes for PubMedQA and SciFact.
 
 ## Later Todos
@@ -36,9 +37,9 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 
 ## Deferred
 
-- Persistent vector database or saved vector index. Use in-memory retrieval for
-  current pooled samples, then revisit FAISS, Chroma, LanceDB, or Qdrant if
-  scale makes rebuilds painful.
+- Persistent vector database. Use local JSON vector-store caches for current
+  pooled samples, then revisit FAISS, Chroma, LanceDB, or Qdrant if scale makes
+  JSON caches too slow or too large.
 - FAISS indexing, unless dataset scale makes in-memory retrieval too limiting.
 - Larger datasets before small runs are easy to inspect.
 - Self-RAG or more advanced retrieval/generation variants.
@@ -58,13 +59,15 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
   loading helpers under `data/`.
 - Oracle normalized samples are learning/debug artifacts only. Report-facing
   retrieval claims should come from pooled-corpus retrieval artifacts.
-- Keep vector storage in memory for the first pooled experiments. Do not add a
-  persistent vector database until scale requires it.
+- Keep retrieval in memory, but save local embedding vector-store caches under
+  ignored `outputs/embedding_cache/` so dense/hybrid reruns do not repeatedly
+  embed the same passage pool.
 - Use DashScope OpenAI-compatible embeddings first:
   - provider: `dashscope`
   - env var: `DASHSCOPE_API_KEY`
   - base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
-  - default embedding model: `text-embedding-v2`
+  - default embedding model: `text-embedding-v4`
+  - default dimensions: `1024`
 - Keep assistant-driven automation interactive around expensive or scope-changing steps.
 
 ## Open Questions

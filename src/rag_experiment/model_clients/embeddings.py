@@ -28,12 +28,18 @@ def get_embedding_model(
     if not api_key:
         raise EnvironmentError(f"Missing environment variable: {api_key_env}")
 
+    dimensions = overrides.pop("dimensions", cfg.get("default_dimensions"))
+    kwargs: dict[str, Any] = {}
+    if dimensions is not None:
+        kwargs["dimensions"] = dimensions
+
     return OpenAIEmbeddings(
         model=model or cfg["default_model"],
         api_key=api_key,
         base_url=overrides.pop("base_url", cfg["base_url"]),
-        chunk_size=overrides.pop("chunk_size", cfg.get("chunk_size", 25)),
+        chunk_size=overrides.pop("chunk_size", cfg.get("chunk_size", 10)),
         tiktoken_enabled=False,
         check_embedding_ctx_length=False,
+        **kwargs,
         **overrides,
     )
