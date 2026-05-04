@@ -32,6 +32,7 @@ def get_embedding_model(
         model=model or cfg["default_model"],
         api_key=api_key,
         base_url=overrides.pop("base_url", cfg["base_url"]),
+        chunk_size=overrides.pop("chunk_size", cfg.get("chunk_size", 25)),
         tiktoken_enabled=False,
         check_embedding_ctx_length=False,
         **overrides,

@@ -126,7 +126,10 @@ Default DashScope embedding settings:
 •	env var: DASHSCOPE_API_KEY
 •	base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
 •	default model: text-embedding-v2
+•	default batch size: 25 texts
 
 Embeddings use `langchain_openai.OpenAIEmbeddings` against DashScope's
 OpenAI-compatible endpoint. If that call fails, the error is surfaced directly
 so integration problems are visible instead of hidden by fallback behavior.
+The default `chunk_size` is capped at 25 because DashScope rejects larger
+embedding batches.

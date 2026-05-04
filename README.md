@@ -121,3 +121,36 @@ artifacts.
 conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/pubmedqa_v01.jsonl --dataset pubmedqa
 conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/scifact_v01.jsonl --dataset scifact
 ```
+
+Build tiny normalized artifacts from real PubMedQA/SciFact rows for learning:
+
+```bash
+conda run -n LLM python -m rag_experiment.data.build_normalized_samples pubmedqa --limit 5
+conda run -n LLM python -m rag_experiment.data.build_normalized_samples scifact --limit 5
+```
+
+These use oracle context/evidence and gold-label demo predictions. They are for
+understanding schema and metrics, not for report-facing retrieval claims.
+
+Run pooled-corpus PubMedQA retrieval artifacts:
+
+```bash
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --top-k 5
+conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/pubmedqa_bm25_pooled_v01.jsonl --dataset pubmedqa
+```
+
+Run pooled-corpus SciFact retrieval artifacts:
+
+```bash
+conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever bm25 --limit 20 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever dense --limit 5 --top-k 5 --corpus-doc-limit 50
+conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever hybrid --limit 5 --top-k 5 --corpus-doc-limit 50
+conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/scifact_bm25_pooled_v01.jsonl --dataset scifact
+```
+
+These runs search each query over a shared passage pool, including distractors.
+The prediction answer is still the gold-label demo value, so these artifacts are
+retrieval-focused rather than generation-focused. Dense and hybrid runs call the
+embedding API; keep limits small while developing.
