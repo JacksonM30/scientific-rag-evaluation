@@ -110,3 +110,14 @@ conda run -n LLM python -m rag_experiment.analysis.inspect_generation outputs/ho
 Use `--limit N` to print only the first N examples, `--show-prompt` to include
 rendered messages, or `--summary-json PATH` to write aggregate counts. The raw
 `results.jsonl` remains the per-example source of truth.
+
+## Normalized Metric Fixtures
+
+The first formal evaluator supports only normalized artifact schema `v0.1` for
+PubMedQA and SciFact. It does not evaluate the older HotpotQA smoke-test
+artifacts.
+
+```bash
+conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/pubmedqa_v01.jsonl --dataset pubmedqa
+conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/scifact_v01.jsonl --dataset scifact
+```
