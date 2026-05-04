@@ -135,9 +135,10 @@ understanding schema and metrics, not for report-facing retrieval claims.
 Run pooled-corpus PubMedQA retrieval artifacts:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 100 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 0 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --corpus-limit 20 --top-k 5
+conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --corpus-limit 20 --top-k 5
 conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/pubmedqa_bm25_pooled_v01.jsonl --dataset pubmedqa
 ```
 
@@ -153,4 +154,8 @@ conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/r
 These runs search each query over a shared passage pool, including distractors.
 The prediction answer is still the gold-label demo value, so these artifacts are
 retrieval-focused rather than generation-focused. Dense and hybrid runs call the
-embedding API; keep limits small while developing.
+embedding API; keep corpus limits small while developing. For PubMedQA,
+`--limit` controls evaluated query rows and `--corpus-limit` controls retrieval
+corpus rows; `--corpus-limit 0` uses all loaded PubMedQA rows. Nonzero
+`--corpus-limit` must be at least `--limit` so every evaluated query's gold
+context is present in the retrieval pool.

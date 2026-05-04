@@ -12,6 +12,7 @@ rag_project/
   data/                    # Tiny fixtures plus ignored raw/processed datasets
   src/rag_experiment/
     data/                  # Dataset schemas and loaders
+    corpus/                # Dataset-specific pooled corpus builders
     retrieval/             # BM25, dense, and hybrid retriever adapters
     model_clients/         # Chat model and embedding factories
     generation/            # Prompt definitions and response parsing
@@ -35,6 +36,17 @@ config
   -> write one JSONL artifact per example
 ```
 
+For report-facing PubMedQA/SciFact retrieval, the flow is:
+
+```text
+dataset rows
+  -> select query rows
+  -> build a pooled retrieval corpus from separate corpus limits
+  -> retrieve top_k passages with BM25, dense, or hybrid retrieval
+  -> write normalized v0.1 JSONL artifacts
+  -> evaluate with dataset-aware metrics
+```
+
 There are two runner modes:
 
 - `runners.dry_run`: retrieval and prompt preview only. It writes
@@ -45,6 +57,9 @@ There are two runner modes:
 ## Module Responsibilities
 
 - `data.hotpotqa`: owns `HotpotExample`, `Passage`, and JSONL loading.
+- `corpus`: converts PubMedQA and SciFact source rows into query sets, gold
+  evidence keys, and pooled passage corpora without leaking answer fields into
+  retrievable text.
 - `retrieval`: wraps library retrievers behind project-owned retrieval records.
   Current methods are BM25, dense vector retrieval over DashScope embeddings,
   and hybrid fusion through LangChain `EnsembleRetriever`.
@@ -56,6 +71,8 @@ There are two runner modes:
   and artifact writing.
 - `runners.run_generation`: adds model invocation and answer parsing to the same
   artifact path.
+- `runners.run_pubmedqa_retrieval` and `runners.run_scifact_retrieval`: build
+  normalized pooled retrieval artifacts for formal metric evaluation.
 
 ## What Comes Later
 

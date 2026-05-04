@@ -7,12 +7,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from rag_experiment.data.hotpotqa import Passage
-from rag_experiment.data.inspect_datasets import (
-    DEFAULT_SCIFACT_DIR,
-    _ensure_scifact_data,
-    _read_jsonl,
+from rag_experiment.corpus.scifact import (
+    build_scifact_passages,
+    load_scifact_data,
+    scifact_gold_evidence,
+    scifact_label,
+    select_labeled_claims,
+    select_scifact_corpus_doc_ids,
 )
+from rag_experiment.data.inspect_datasets import DEFAULT_SCIFACT_DIR
 from rag_experiment.retrieval.base import RetrievalResult, Retriever
 from rag_experiment.runners.artifacts import error_record
 from rag_experiment.runners.pooled_retrieval import (
@@ -35,20 +38,18 @@ def run_scifact_retrieval(
     corpus_doc_limit: int,
 ) -> Path:
     """Build a pooled SciFact retrieval artifact from labeled train claims."""
-    dataset_dir = _ensure_scifact_data(data_dir)
-    corpus = {
-        int(row["doc_id"]): row for row in _read_jsonl(dataset_dir / "corpus.jsonl")
-    }
-    claims = _select_labeled_claims(
-        _read_jsonl(dataset_dir / "claims_train.jsonl"),
+    corpus, train_claims = load_scifact_data(data_dir=data_dir)
+    claims = select_labeled_claims(
+        train_claims,
         corpus=corpus,
         limit=limit,
     )
-    passages = _build_passage_pool(
+    doc_ids = select_scifact_corpus_doc_ids(
         corpus=corpus,
         claims=claims,
         corpus_doc_limit=corpus_doc_limit,
     )
+    passages = build_scifact_passages(corpus=corpus, doc_ids=doc_ids)
     retriever = build_pooled_retriever(retriever_name, passages, top_k=top_k)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,72 +63,12 @@ def run_scifact_retrieval(
                 top_k=top_k,
                 limit=limit,
                 corpus_doc_limit=corpus_doc_limit,
+                corpus_doc_count=len(doc_ids),
+                passage_count=len(passages),
             )
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     return output_path
-
-
-def _select_labeled_claims(
-    claims: list[dict[str, Any]],
-    *,
-    corpus: dict[int, dict[str, Any]],
-    limit: int,
-) -> list[dict[str, Any]]:
-    selected: list[dict[str, Any]] = []
-    for claim in claims:
-        if _claim_label(claim) is None:
-            continue
-        if not _gold_evidence(claim, corpus):
-            continue
-        selected.append(claim)
-        if len(selected) >= limit:
-            break
-    if not selected:
-        raise ValueError("No labeled SciFact claims with usable evidence were loaded")
-    return selected
-
-
-def _build_passage_pool(
-    *,
-    corpus: dict[int, dict[str, Any]],
-    claims: list[dict[str, Any]],
-    corpus_doc_limit: int,
-) -> list[Passage]:
-    required_doc_ids = {
-        int(item["doc_id"])
-        for claim in claims
-        for item in _gold_evidence(claim, corpus)
-    }
-    doc_ids = list(required_doc_ids)
-    if corpus_doc_limit > 0:
-        for doc_id in sorted(corpus):
-            if len(doc_ids) >= corpus_doc_limit:
-                break
-            if doc_id not in required_doc_ids:
-                doc_ids.append(doc_id)
-    else:
-        doc_ids = sorted(corpus)
-
-    passages: list[Passage] = []
-    for doc_id in doc_ids:
-        row = corpus.get(doc_id)
-        if row is None:
-            continue
-        title = str(row.get("title") or doc_id)
-        for sentence_index, text in enumerate(row.get("abstract") or []):
-            passages.append(
-                Passage(
-                    id=f"scifact::{doc_id}::{sentence_index}",
-                    example_id=str(doc_id),
-                    title=title,
-                    sentence_index=sentence_index,
-                    text=str(text),
-                )
-            )
-    if not passages:
-        raise ValueError("SciFact passage pool is empty")
-    return passages
 
 
 def _build_record(
@@ -139,6 +80,8 @@ def _build_record(
     top_k: int,
     limit: int,
     corpus_doc_limit: int,
+    corpus_doc_count: int,
+    passage_count: int,
 ) -> dict[str, Any]:
     try:
         results = retriever.retrieve(str(claim["claim"]), top_k=top_k)
@@ -150,6 +93,8 @@ def _build_record(
             top_k=top_k,
             limit=limit,
             corpus_doc_limit=corpus_doc_limit,
+            corpus_doc_count=corpus_doc_count,
+            passage_count=passage_count,
             error=None,
         )
     except Exception as exc:
@@ -161,6 +106,8 @@ def _build_record(
             top_k=top_k,
             limit=limit,
             corpus_doc_limit=corpus_doc_limit,
+            corpus_doc_count=corpus_doc_count,
+            passage_count=passage_count,
             error=error_record(exc),
         )
 
@@ -174,10 +121,12 @@ def _record(
     top_k: int,
     limit: int,
     corpus_doc_limit: int,
+    corpus_doc_count: int,
+    passage_count: int,
     error: dict[str, str] | None,
 ) -> dict[str, Any]:
-    label = _claim_label(claim)
-    evidence = _gold_evidence(claim, corpus)
+    label = scifact_label(claim)
+    evidence = scifact_gold_evidence(claim, corpus)
     source_doc_ids = sorted({item["doc_id"] for item in evidence})
 
     return {
@@ -190,6 +139,8 @@ def _record(
             "model_profile": "gold_label_demo",
             "sample_limit": limit,
             "corpus_doc_limit": corpus_doc_limit,
+            "corpus_doc_count": corpus_doc_count,
+            "passage_count": passage_count,
         },
         "example": {
             "id": str(claim["id"]),
@@ -210,35 +161,6 @@ def _record(
         },
         "error": error,
     }
-
-
-def _claim_label(claim: dict[str, Any]) -> str | None:
-    for evidence_items in (claim.get("evidence") or {}).values():
-        for evidence_item in evidence_items:
-            label = evidence_item.get("label")
-            if label:
-                return str(label)
-    return None
-
-
-def _gold_evidence(
-    claim: dict[str, Any],
-    corpus: dict[int, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    evidence: list[dict[str, Any]] = []
-    seen: set[tuple[str, int]] = set()
-    for doc_id_text, evidence_items in (claim.get("evidence") or {}).items():
-        doc_id = int(doc_id_text)
-        abstract = (corpus.get(doc_id) or {}).get("abstract") or []
-        for evidence_item in evidence_items:
-            for sentence_index in evidence_item.get("sentences") or []:
-                sentence_index = int(sentence_index)
-                key = (str(doc_id), sentence_index)
-                if sentence_index >= len(abstract) or key in seen:
-                    continue
-                seen.add(key)
-                evidence.append({"doc_id": str(doc_id), "sentence_index": sentence_index})
-    return evidence
 
 
 def _retrieved_passage(result: RetrievalResult) -> dict[str, Any]:

@@ -142,6 +142,9 @@ The dataset dissection step has established the real PubMedQA and SciFact
 schemas. The formal metric layer now has a fixed normalized artifact contract.
 PubMedQA and SciFact pooled-corpus runners write real retrieval artifacts under
 `outputs/retrieval/`, with BM25, dense, and hybrid retriever options.
+PubMedQA separates evaluated query rows from retrieval corpus rows with
+`--limit` and `--corpus-limit`; SciFact uses `--limit` and
+`--corpus-doc-limit`.
 
 The oracle normalized samples remain useful for learning the schema and
 metrics, but they should not be used for report-facing retrieval claims.
