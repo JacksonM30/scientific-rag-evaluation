@@ -4,14 +4,17 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 
 ## Current Focus
 
-- Build and inspect real pooled-corpus retrieval artifacts for PubMedQA and
-  SciFact.
+- Turn PubMedQA and SciFact n=100 artifacts into report-ready retriever, model,
+  and domain comparison evidence.
+- Keep report-facing experiment records under `experiments/`; raw JSONL, CSV,
+  and metric JSON artifacts stay under ignored `outputs/`.
 - PubMedQA and SciFact pooled runners exist with BM25, dense, and hybrid
   options; dense/hybrid now default to cached DashScope `text-embedding-v4`
   vectors.
-- Use artifact inspection to identify retrieval misses and evidence coverage
-  before making report-facing claims.
-- Use answer plus cited passage IDs as the default model output shape.
+- Use dense v4 retrieval artifacts as the default generation inputs because
+  dense v4 is the strongest current retriever.
+- Use answer plus cited passage IDs and `evidence_summary` as the report-facing
+  model output shape for generation comparisons.
 - Keep the code library-first where possible, especially for standard RAG components.
 - Use notebooks as learning surfaces, not as the main experiment engine.
 - Treat HotpotQA mini as a debug/sanity dataset, not the current report-facing
@@ -19,24 +22,32 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 
 ## Near-Term Todos
 
-- Inspect PubMedQA/SciFact pooled BM25 artifacts and record obvious retrieval
-  misses or weak query/passage patterns.
-- Scale PubMedQA/SciFact dense and hybrid retrieval with cached
-  `text-embedding-v4` and compare against BM25.
-- Decide the first report-facing sample sizes for PubMedQA and SciFact.
+- Use `experiments/001_report_ready_retriever_model_domain.md` as the source of
+  truth for report-facing metric tables and artifact paths.
+- Inspect representative success/failure examples from the report model outputs
+  before writing final claims, especially PubMedQA wrong answers with valid
+  gold-overlapping citations.
+- Convert the experiment record into report figures/tables and a concise
+  narrative: dense beats BM25, instruct-2507 is the stronger generator, and
+  PubMedQA/SciFact differ by domain and label structure.
 
 ## Later Todos
 
-- Connect pooled retrieval artifacts to one generation model after retrieval
-  quality is inspectable.
-- Add answer evaluation for generated PubMedQA yes/no/maybe outputs.
-- Add citation and grounding evaluation after generated answers include stable,
-  inspectable evidence references.
+- Add small tests for citation metric edge cases if the evaluator keeps growing.
 - Compare a second generation model after the single-model path is clear.
-- Use `experiment-analyzer` on saved artifacts before writing report claims.
+- Use `experiment-analyzer` on saved artifacts before writing final report prose.
 
 ## Deferred
 
+- Hybrid v4 underperforms dense v4 in the current n=100 pooled runs. The current
+  hybrid retriever is equal-weight BM25+dense RRF, so lexical BM25 candidates can
+  displace semantically stronger dense hits in top-k. Before making hybrid a
+  report-facing improvement claim, inspect misses and tune `weights`,
+  `candidate_k`, `rrf_k`, or try dense-first reranking.
+- HotpotQA dense/hybrid dry-run configs still reference `text-embedding-v2`.
+  Current embedding defaults are v4-oriented and inject `dimensions=1024`, so
+  either update those configs to v4 or make dimensions model-aware before using
+  them again.
 - Persistent vector database. Use local JSON vector-store caches for current
   pooled samples, then revisit FAISS, Chroma, LanceDB, or Qdrant if scale makes
   JSON caches too slow or too large.
@@ -72,6 +83,15 @@ This file tracks project direction, near-term todos, deferred ideas, and durable
 
 ## Open Questions
 
-- How large should the first report-facing PubMedQA/SciFact pooled runs be on
-  the local MacBook?
+- Do PubMedQA wrong-answer cases mostly come from prompt conservatism, label
+  ambiguity, or retrieved contexts that do not fully support the gold answer?
+- Why does citation-first v2 sometimes cite fewer or less gold-overlapping
+  passages even when answer accuracy improves slightly on selected cases?
+- For PubMedQA, does the v3 `evidence_summary` show model misreading, weak gold
+  evidence, or a prompt policy problem?
+- Does the selected-case PubMedQA gain from `qwen3.5-flash` hold on n=100, or is
+  it specific to the failure-heavy selected subset?
+- For SciFact, are the thinking-mode citation gains useful enough to justify the
+  label-accuracy drop, or should we keep `qwen3-8b` v3-debug as the stronger
+  citation-balanced path?
 - If scale requires persistent vector storage, should we use FAISS, Chroma, LanceDB, or Qdrant?

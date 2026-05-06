@@ -76,11 +76,13 @@ There are two runner modes:
   artifact path.
 - `runners.run_pubmedqa_retrieval` and `runners.run_scifact_retrieval`: build
   normalized pooled retrieval artifacts for formal metric evaluation.
+- `runners.run_pooled_generation`: consumes saved pooled retrieval artifacts and
+  writes generated answer/citation artifacts without rerunning retrieval.
+- `evaluation.evaluate_artifact`: evaluates normalized retrieval and generation
+  artifacts with dataset-aware answer, retrieval, and citation metrics.
 
 ## What Comes Later
 
-- `evaluation`: add retrieval, answer, citation, and grounding metrics once real
-  generation artifacts exist.
 - `analysis`: aggregate artifact JSONL into tables and failure patterns.
 
 Do not create these modules before they have real behavior. Empty folders make
