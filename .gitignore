@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .env
+.env.*
+.ipynb_checkpoints/
 .venv/
 venv/
 
@@ -17,4 +19,3 @@ data/raw/
 data/cache/
 indexes/
 *.faiss
-

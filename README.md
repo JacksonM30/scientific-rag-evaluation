@@ -1,52 +1,50 @@
 # CS6493 RAG Experiment Harness
 
-This repository contains the implementation code for the CS6493 Topic 4 RAG project.
+This repository contains a reproducible experiment harness for the CS6493 Topic
+4 project: Retrieval-Augmented Generation for knowledge-intensive scientific and
+biomedical tasks.
 
-Planning notes, assignment PDFs, and Codex workflow documents live one level up in `../docs/`.
-Keep this repository focused on runnable experiment code, configs, tests, and inspectable outputs.
-See `docs/ARCHITECTURE.md` for the current module map and data flow.
+The report-facing work compares BM25, dense, and hybrid retrieval on PubMedQA
+and SciFact, then evaluates generated answers and citation grounding under fixed
+retrieval/model settings. Raw datasets, model outputs, embedding caches, and
+large generated artifacts are intentionally ignored by Git; tracked experiment
+records under `experiments/` summarize the report evidence.
 
-## Current Direction
+## Current Results
 
-- Start with a tiny HotpotQA RAG loop.
-- Save intermediate artifacts so retrieval and generation failures can be inspected.
-- Use standard libraries for standard RAG components where practical.
-- Keep experiment configs, artifacts, and analysis under project control.
-- Use `rag_experiment.model_clients` for generation profiles.
-- Expand only after one end-to-end run is understandable.
+Tracked experiment records:
 
-## Dataset Policy
+- `experiments/001_report_ready_retriever_model_domain.md`: BM25/hybrid/dense
+  retrieval comparison, dense-only model comparison, and PubMedQA/SciFact domain
+  comparison.
+- `experiments/002_retriever_influence_on_generation.md`: BM25 vs dense
+  generation impact under the fixed stronger report model.
 
-- Commit tiny synthetic fixtures such as `data/hotpotqa_mini/sample.jsonl`.
-- Keep full dataset downloads under ignored paths like `data/raw/`.
-- Record sample size, split, and source path in each run config/artifact.
-- Start with 5-10 examples, then scale only after retrieval and artifact traces look correct.
-- Use real dataset samples, not synthetic fixtures, for report-facing results.
+Main n=100 findings:
 
-## Environment
+- Dense v4 retrieval is stronger than BM25 on both datasets.
+- `qwen3-30b-a3b-instruct-2507` is the stronger report generator among the two
+  tested Qwen 30B profiles.
+- Holding the generator fixed, dense retrieval improves both answer accuracy and
+  citation-gold grounding over BM25.
 
-Use the local conda environment:
+## Repository Layout
 
-```bash
-conda activate LLM
-```
+- `src/rag_experiment/`: package code for datasets, retrieval, generation,
+  evaluation, model clients, and analysis utilities.
+- `configs/`: small HotpotQA smoke-run configs.
+- `data/`: tiny committed fixtures plus ignored raw/cache directories.
+- `docs/`: architecture, dataset, evaluation, and model-client notes.
+- `experiments/`: tracked report-facing experiment records.
+- `notebooks/`: learning notebooks for understanding retrieval, metrics, and
+  generated citations.
+- `tests/`: focused unit tests for parsing, generation, evaluation, and
+  comparison helpers.
 
-or run commands without activating the shell:
+## Setup
 
-```bash
-conda run -n LLM python -V
-```
-
-## Dependencies
-
-LangChain is already used for model clients and retrieval adapters. The BM25
-baseline uses `langchain_community.retrievers.BM25Retriever`, which requires the
-optional `rank-bm25` package. Dense retrieval uses LangChain's in-memory vector
-store plus DashScope embeddings through the OpenAI-compatible API. Hybrid
-retrieval uses LangChain `EnsembleRetriever` over BM25 and dense retrievers.
-
-Core RAG dependencies are recorded in `requirements.txt`. Install or refresh
-them in the `LLM` environment with:
+The project was developed with Python 3.11 in a local conda environment named
+`LLM`.
 
 ```bash
 conda activate LLM
@@ -54,112 +52,78 @@ python -m pip install -r requirements.txt
 python -m pip install -e . --no-build-isolation
 ```
 
-If retrieval reports that `rank-bm25` is missing, install it in the `LLM`
-environment:
+Commands can also be run without activating the shell:
 
 ```bash
-conda activate LLM
-python -m pip install rank-bm25
+conda run -n LLM env PYTHONPATH=src python -m unittest discover -s tests
 ```
 
-Experiment code should not install dependencies at runtime. During development,
-the assistant may try setup commands; if download/install fails, it should give
-the exact command for manual installation.
+## API Keys
 
-## Retrieval Dry Runs
-
-Run the BM25 no-API artifact pass from this repository root:
+Dense retrieval, hybrid retrieval, and generation profiles use DashScope through
+OpenAI-compatible LangChain clients. Set the API key before running API-backed
+commands:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_bm25_dry_run.json
+export DASHSCOPE_API_KEY="..."
 ```
 
-Dense and hybrid retrieval use `DASHSCOPE_API_KEY` for embeddings. The pooled
-PubMedQA/SciFact runners default to DashScope `text-embedding-v4` with
-1024-dimensional vectors and save reusable vector caches under
-`outputs/embedding_cache/`.
+Do not commit `.env` files, raw keys, generated outputs, or embedding caches.
+
+## Common Commands
+
+Run tests:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_dense_dry_run.json
-conda run -n LLM python -m rag_experiment.runners.dry_run configs/hotpotqa_hybrid_dry_run.json
+conda run -n LLM env PYTHONPATH=src python -m unittest discover -s tests
+conda run -n LLM env PYTHONPATH=src python -B -m compileall -q src tests
 ```
 
-This writes JSONL artifacts under `outputs/`, which is ignored by Git. The dry
-run validates dataset loading, retrieval, prompt rendering, and artifact shape
-before any answer-generation model call.
-
-## Generation Smoke Run
-
-The first real generation config uses HotpotQA mini, BM25, `top_k=3`, and the
-`rag_qwen_generation_v1` model profile:
+Evaluate a normalized artifact:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.run_generation configs/hotpotqa_bm25_generation.json
+conda run -n LLM env PYTHONPATH=src python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/pubmedqa_bm25_pooled_v01.jsonl --dataset pubmedqa
 ```
 
-This calls DashScope through the OpenAI-compatible API, so `DASHSCOPE_API_KEY`
-must be set. Each output row includes the question, gold answer, retrieved
-passages, rendered messages, raw model answer, parsed answer, cited passage IDs,
-and any per-example error.
-
-## Generation Artifact Inspection
-
-Inspect a saved generation artifact without making new API calls:
+Run pooled PubMedQA retrieval:
 
 ```bash
-conda run -n LLM python -m rag_experiment.analysis.inspect_generation outputs/hotpotqa_mini_bm25_generation/results.jsonl
+conda run -n LLM env PYTHONPATH=src python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 100 --top-k 5
 ```
 
-Use `--limit N` to print only the first N examples, `--show-prompt` to include
-rendered messages, or `--summary-json PATH` to write aggregate counts. The raw
-`results.jsonl` remains the per-example source of truth.
-
-## Normalized Metric Fixtures
-
-The first formal evaluator supports only normalized artifact schema `v0.1` for
-PubMedQA and SciFact. It does not evaluate the older HotpotQA smoke-test
-artifacts.
+Run pooled SciFact retrieval:
 
 ```bash
-conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/pubmedqa_v01.jsonl --dataset pubmedqa
-conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact data/evaluation_fixtures/scifact_v01.jsonl --dataset scifact
+conda run -n LLM env PYTHONPATH=src python -m rag_experiment.runners.run_scifact_retrieval --retriever bm25 --limit 20 --corpus-doc-limit 300 --top-k 5
 ```
 
-Build tiny normalized artifacts from real PubMedQA/SciFact rows for learning:
+Generate answers from an existing pooled retrieval artifact:
 
 ```bash
-conda run -n LLM python -m rag_experiment.data.build_normalized_samples pubmedqa --limit 5
-conda run -n LLM python -m rag_experiment.data.build_normalized_samples scifact --limit 5
+conda run -n LLM env PYTHONPATH=src python -m rag_experiment.runners.run_pooled_generation --dataset pubmedqa --input outputs/retrieval/pubmedqa_dense_v4_pooled_n100_fullcorpus_v01.jsonl --output outputs/generation/pubmedqa_generation.jsonl --prompt-id pubmedqa_rag_json_v3_debug --model-profile rag_qwen3_30b_a3b_instruct_2507_v3_report --limit 3
 ```
 
-These use oracle context/evidence and gold-label demo predictions. They are for
-understanding schema and metrics, not for report-facing retrieval claims.
-
-Run pooled-corpus PubMedQA retrieval artifacts:
+Compare two generated artifacts by example ID:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 100 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever bm25 --limit 20 --corpus-limit 0 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever dense --limit 5 --corpus-limit 20 --top-k 5 --embedding-model text-embedding-v4 --embedding-dimensions 1024
-conda run -n LLM python -m rag_experiment.runners.run_pubmedqa_retrieval --retriever hybrid --limit 5 --corpus-limit 20 --top-k 5 --embedding-model text-embedding-v4 --embedding-dimensions 1024
-conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/pubmedqa_bm25_pooled_v01.jsonl --dataset pubmedqa
+conda run -n LLM env PYTHONPATH=src python -m rag_experiment.analysis.generation_ab compare-models --dataset pubmedqa --baseline outputs/generation/baseline.jsonl --candidate outputs/generation/candidate.jsonl --baseline-label baseline --candidate-label candidate --output-csv outputs/analysis/generation_ab/comparison.csv --output-json outputs/analysis/generation_ab/comparison_summary.json
 ```
 
-Run pooled-corpus SciFact retrieval artifacts:
+## Data and Artifact Policy
+
+- Commit only tiny fixtures and human-readable experiment records.
+- Keep full dataset downloads under `data/raw/`.
+- Keep generated outputs, embedding caches, vector indexes, logs, and report
+  exports under ignored local paths such as `outputs/`.
+- Use `experiments/*.md` as the tracked source for report-ready metric tables and
+  artifact paths.
+
+## Verification Status
+
+Latest local verification before GitHub publication:
 
 ```bash
-conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever bm25 --limit 20 --top-k 5
-conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever dense --limit 5 --top-k 5 --corpus-doc-limit 50 --embedding-model text-embedding-v4 --embedding-dimensions 1024
-conda run -n LLM python -m rag_experiment.runners.run_scifact_retrieval --retriever hybrid --limit 5 --top-k 5 --corpus-doc-limit 50 --embedding-model text-embedding-v4 --embedding-dimensions 1024
-conda run -n LLM python -m rag_experiment.evaluation.evaluate_artifact outputs/retrieval/scifact_bm25_pooled_v01.jsonl --dataset scifact
+conda run -n LLM env PYTHONPATH=src python -m unittest discover -s tests
+conda run -n LLM env PYTHONPATH=src python -B -m compileall -q src tests
+git diff --check
 ```
-
-These runs search each query over a shared passage pool, including distractors.
-The prediction answer is still the gold-label demo value, so these artifacts are
-retrieval-focused rather than generation-focused. Dense and hybrid runs call the
-embedding API on a cache miss and reuse local cached vectors on later matching
-runs. Use `--no-embedding-cache` only when debugging live embedding calls. For
-PubMedQA, `--limit` controls evaluated query rows and `--corpus-limit` controls
-retrieval corpus rows; `--corpus-limit 0` uses all loaded PubMedQA rows.
-Nonzero `--corpus-limit` must be at least `--limit` so every evaluated query's
-gold context is present in the retrieval pool.
