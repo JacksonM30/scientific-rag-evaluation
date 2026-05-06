@@ -118,6 +118,12 @@ conda run -n LLM env PYTHONPATH=src python -m rag_experiment.analysis.generation
 - Use `experiments/*.md` as the tracked source for report-ready metric tables and
   artifact paths.
 
+## Contributors
+
+- JacksonM30
+- OpenAI Codex, used as an AI coding assistant for implementation support,
+  verification, and release preparation.
+
 ## Verification Status
 
 Latest local verification before GitHub publication:
