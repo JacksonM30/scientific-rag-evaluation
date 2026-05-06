@@ -25,10 +25,19 @@ def parse_answer_json(raw_answer: str) -> dict[str, Any]:
             "model answer JSON must contain list[str] key 'cited_passage_ids'"
         )
 
-    return {
+    parsed = {
         "answer": answer,
         "cited_passage_ids": cited_passage_ids,
     }
+    if "evidence_summary" in payload:
+        evidence_summary = payload["evidence_summary"]
+        if not isinstance(evidence_summary, str):
+            raise ValueError(
+                "model answer JSON key 'evidence_summary' must be a string when present"
+            )
+        parsed["evidence_summary"] = evidence_summary
+
+    return parsed
 
 
 def _strip_markdown_fence(raw_answer: str) -> str:
