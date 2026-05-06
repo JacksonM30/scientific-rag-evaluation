@@ -87,6 +87,7 @@ def _evaluate_pubmedqa(path: Path, records: list[dict[str, Any]]) -> dict[str, A
     context_hit = 0
     context_recall_sum = 0.0
     skipped_context = 0
+    citation = _empty_citation_stats()
 
     for record in records:
         _ensure_dataset(record, expected="pubmedqa")
@@ -100,6 +101,12 @@ def _evaluate_pubmedqa(path: Path, records: list[dict[str, Any]]) -> dict[str, A
             answer_correct += int(gold_answer == pred_answer)
 
         gold_contexts = _pubmedqa_context_keys(record["example"].get("gold_evidence", []))
+        _update_citation_stats(
+            citation,
+            record=record,
+            gold_keys=gold_contexts,
+            passage_key_fn=_pubmedqa_passage_key,
+        )
         if not gold_contexts:
             skipped_context += 1
             continue
@@ -121,6 +128,7 @@ def _evaluate_pubmedqa(path: Path, records: list[dict[str, Any]]) -> dict[str, A
             "context_total": context_total,
             "context_recall_at_k": _average(context_recall_sum, context_total),
             "context_skipped": skipped_context,
+            **_finalize_citation_stats(citation),
         },
     }
 
@@ -134,6 +142,7 @@ def _evaluate_scifact(path: Path, records: list[dict[str, Any]]) -> dict[str, An
     all_hit = 0
     evidence_recall_sum = 0.0
     skipped_evidence = 0
+    citation = _empty_citation_stats()
 
     for record in records:
         _ensure_dataset(record, expected="scifact")
@@ -147,6 +156,12 @@ def _evaluate_scifact(path: Path, records: list[dict[str, Any]]) -> dict[str, An
             label_correct += int(gold_label == pred_label)
 
         gold_evidence = _scifact_sentence_keys(record["example"].get("gold_evidence", []))
+        _update_citation_stats(
+            citation,
+            record=record,
+            gold_keys=gold_evidence,
+            passage_key_fn=_scifact_passage_key,
+        )
         if not gold_evidence:
             skipped_evidence += 1
             continue
@@ -177,6 +192,7 @@ def _evaluate_scifact(path: Path, records: list[dict[str, Any]]) -> dict[str, An
             "evidence_recall_at_k": _average(evidence_recall_sum, evidence_total),
             "evidence_total": evidence_total,
             "evidence_skipped": skipped_evidence,
+            **_finalize_citation_stats(citation),
         },
     }
 
@@ -190,6 +206,9 @@ def _base_summary(path: Path, dataset: str, records: list[dict[str, Any]]) -> di
         "run": first.get("run", {}),
         "row_count": len(records),
         "error_count": sum(1 for record in records if record.get("error")),
+        "generation_error_count": sum(
+            1 for record in records if record.get("generation_error")
+        ),
     }
 
 
@@ -201,6 +220,17 @@ def _ensure_dataset(record: dict[str, Any], *, expected: str) -> None:
 def _prediction_answer(record: dict[str, Any]) -> Any:
     prediction = record.get("prediction") or {}
     return prediction.get("answer")
+
+
+def _prediction_cited_ids(record: dict[str, Any]) -> list[str]:
+    prediction = record.get("prediction") or {}
+    cited_ids = prediction.get("cited_passage_ids")
+    if cited_ids is None:
+        parsed = record.get("parsed_answer") or {}
+        cited_ids = parsed.get("cited_passage_ids")
+    if not isinstance(cited_ids, list):
+        return []
+    return [str(cited_id) for cited_id in cited_ids]
 
 
 def _normalize_pubmedqa_label(value: Any) -> str | None:
@@ -235,6 +265,15 @@ def _pubmedqa_context_keys(items: list[dict[str, Any]]) -> set[tuple[str, int]]:
     return keys
 
 
+def _pubmedqa_passage_key(passage: dict[str, Any]) -> tuple[str, int] | None:
+    metadata = passage.get("metadata") or {}
+    pubid = metadata.get("pubid")
+    context_idx = metadata.get("context_idx")
+    if pubid is None or context_idx is None:
+        return None
+    return (str(pubid), int(context_idx))
+
+
 def _scifact_sentence_keys(items: list[dict[str, Any]]) -> set[tuple[str, int]]:
     keys: set[tuple[str, int]] = set()
     for item in items:
@@ -244,6 +283,94 @@ def _scifact_sentence_keys(items: list[dict[str, Any]]) -> set[tuple[str, int]]:
             continue
         keys.add((str(doc_id), int(sentence_index)))
     return keys
+
+
+def _scifact_passage_key(passage: dict[str, Any]) -> tuple[str, int] | None:
+    metadata = passage.get("metadata") or {}
+    doc_id = metadata.get("doc_id")
+    sentence_index = metadata.get("sentence_index")
+    if doc_id is None or sentence_index is None:
+        return None
+    return (str(doc_id), int(sentence_index))
+
+
+def _empty_citation_stats() -> dict[str, int | float]:
+    return {
+        "citation_total": 0,
+        "citation_no_citation_count": 0,
+        "citation_valid_count": 0,
+        "cited_passage_total": 0,
+        "cited_passage_valid_count": 0,
+        "citation_gold_total": 0,
+        "citation_gold_hit_count": 0,
+        "citation_gold_recall_sum": 0.0,
+    }
+
+
+def _update_citation_stats(
+    stats: dict[str, int | float],
+    *,
+    record: dict[str, Any],
+    gold_keys: set[tuple[str, int]],
+    passage_key_fn: Any,
+) -> None:
+    retrieved_by_id = {
+        passage.get("passage_id"): passage
+        for passage in record.get("retrieved_passages", [])
+        if passage.get("passage_id") is not None
+    }
+    cited_ids = _prediction_cited_ids(record)
+    cited_passages = [
+        retrieved_by_id[cited_id]
+        for cited_id in cited_ids
+        if cited_id in retrieved_by_id
+    ]
+    cited_keys = {
+        key
+        for key in (passage_key_fn(passage) for passage in cited_passages)
+        if key is not None
+    }
+
+    stats["citation_total"] += 1
+    stats["cited_passage_total"] += len(cited_ids)
+    stats["cited_passage_valid_count"] += len(cited_passages)
+    if not cited_ids:
+        stats["citation_no_citation_count"] += 1
+    if len(cited_passages) == len(cited_ids):
+        stats["citation_valid_count"] += 1
+    if gold_keys:
+        matched_gold = gold_keys & cited_keys
+        stats["citation_gold_total"] += 1
+        stats["citation_gold_hit_count"] += int(bool(matched_gold))
+        stats["citation_gold_recall_sum"] += len(matched_gold) / len(gold_keys)
+
+
+def _finalize_citation_stats(stats: dict[str, int | float]) -> dict[str, Any]:
+    citation_total = int(stats["citation_total"])
+    cited_passage_total = int(stats["cited_passage_total"])
+    citation_gold_total = int(stats["citation_gold_total"])
+    return {
+        "citation_valid_rate": _rate(int(stats["citation_valid_count"]), citation_total),
+        "citation_valid_count": int(stats["citation_valid_count"]),
+        "citation_total": citation_total,
+        "citation_no_citation_rate": _rate(
+            int(stats["citation_no_citation_count"]), citation_total
+        ),
+        "citation_no_citation_count": int(stats["citation_no_citation_count"]),
+        "cited_passage_valid_rate": _rate(
+            int(stats["cited_passage_valid_count"]), cited_passage_total
+        ),
+        "cited_passage_valid_count": int(stats["cited_passage_valid_count"]),
+        "cited_passage_total": cited_passage_total,
+        "citation_gold_hit_rate": _rate(
+            int(stats["citation_gold_hit_count"]), citation_gold_total
+        ),
+        "citation_gold_hit_count": int(stats["citation_gold_hit_count"]),
+        "citation_gold_total": citation_gold_total,
+        "citation_gold_recall": _average(
+            float(stats["citation_gold_recall_sum"]), citation_gold_total
+        ),
+    }
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
@@ -265,7 +392,10 @@ def _print_summary(summary: dict[str, Any]) -> None:
     print(f"dataset: {summary['dataset']}")
     print(f"artifact: {summary['artifact_path']}")
     print(f"run: {summary['run']}")
-    print(f"rows: {summary['row_count']}  errors: {summary['error_count']}")
+    print(
+        f"rows: {summary['row_count']}  errors: {summary['error_count']}  "
+        f"generation_errors: {summary['generation_error_count']}"
+    )
     print("metrics:")
     for key, value in summary["metrics"].items():
         print(f"  {key}: {value}")
